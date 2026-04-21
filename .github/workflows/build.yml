@@ -2,9 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -12,54 +10,48 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      - name: Set up Gradle 8.7
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: 8.7
-
-      - name: Set up Android SDK
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-
-      - name: Accept licenses
-        run: yes | sdkmanager --licenses || true
 
       - name: Install SDK packages
         run: |
+          yes | sdkmanager --licenses || true
           sdkmanager \
             "platform-tools" \
             "platforms;android-34" \
             "build-tools;34.0.0"
 
-      - name: Find project root
-        id: root
+      # Real fix: if wrapper missing, generate one first
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.7
+
+      - name: Generate gradle wrapper if missing
         run: |
-          if [ -f "./gradlew" ]; then
-            echo "dir=." >> $GITHUB_OUTPUT
-          else
-            DIR=$(find . -name gradlew | head -n 1 | xargs dirname)
-            echo "dir=$DIR" >> $GITHUB_OUTPUT
+          if [ ! -f gradlew ]; then
+            gradle wrapper
           fi
 
-      - name: Make gradlew executable
-        run: chmod +x "${{ steps.root.outputs.dir }}/gradlew"
+      - name: Make wrapper executable
+        run: chmod +x gradlew
 
-      - name: Build APK
-        run: |
-          cd "${{ steps.root.outputs.dir }}"
-          ./gradlew assembleDebug --stacktrace
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
+          name: apk
           path: |
+            app/build/outputs/apk/debug/*.apk
             **/build/outputs/apk/debug/*.apk
