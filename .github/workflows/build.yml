@@ -21,8 +21,7 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # FIX: force compatible Gradle version for old Android Gradle Plugin
-      - name: Setup Gradle 8.7
+      - name: Set up Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.7
@@ -30,32 +29,37 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Accept Licenses
+      - name: Accept licenses
         run: yes | sdkmanager --licenses || true
 
-      - name: Install SDK Packages
+      - name: Install SDK packages
         run: |
           sdkmanager \
             "platform-tools" \
             "platforms;android-34" \
             "build-tools;34.0.0"
 
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-
-      # IMPORTANT: use wrapper if exists, otherwise gradle 8.7
-      - name: Build APK
+      - name: Find project root
+        id: root
         run: |
           if [ -f "./gradlew" ]; then
-            ./gradlew assembleDebug --stacktrace
+            echo "dir=." >> $GITHUB_OUTPUT
           else
-            gradle assembleDebug --stacktrace
+            DIR=$(find . -name gradlew | head -n 1 | xargs dirname)
+            echo "dir=$DIR" >> $GITHUB_OUTPUT
           fi
+
+      - name: Make gradlew executable
+        run: chmod +x "${{ steps.root.outputs.dir }}/gradlew"
+
+      - name: Build APK
+        run: |
+          cd "${{ steps.root.outputs.dir }}"
+          ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
           path: |
-            app/build/outputs/apk/debug/*.apk
-            */build/outputs/apk/debug/*.apk
+            **/build/outputs/apk/debug/*.apk
